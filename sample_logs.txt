@@ -1,0 +1,14 @@
+
+🛍️ E-Commerce Support Chatbot
+
+👤 You: What is the return period?
+🤖 Bot: Customers can return products within 30 days of delivery.
+
+👤 You: What about damaged products?
+🤖 Bot: Damaged or defective products must be reported within 48 hours of delivery.
+
+👤 You: What is delivery time?
+🤖 Bot: Standard delivery takes 3–7 business days, and express delivery takes 1–2 business days.
+
+👤 You: Can I return after 60 days?
+🤖 Bot: I don’t have enough information in the provided documents.

@@ -1,99 +1,107 @@
 import os
 from dotenv import load_dotenv
-
-from langchain_community.document_loaders import TextLoader, PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 
-# -------------------------------
-# 1. Load Environment Variables
-# -------------------------------
+# -----------------------------------------
+# ENV SETUP
+# -----------------------------------------
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not OPENAI_API_KEY:
-    raise ValueError("❌ OPENAI_API_KEY not found in .env file")
+    raise ValueError("❌ OPENAI_API_KEY not found in environment variables")
 
+# -----------------------------------------
+# PATHS
+# -----------------------------------------
+DATA_FOLDER = "data"
+VECTOR_DB_PATH = "vectorstore/faiss_index"
 
-# -------------------------------
-# 2. Load Documents
-# -------------------------------
-def load_documents(data_path="data"):
+# -----------------------------------------
+# LOAD DOCUMENTS (.md / .txt)
+# -----------------------------------------
+def load_documents():
+    print("📂 Loading documents...")
+
     documents = []
 
-    for file in os.listdir(data_path):
-        file_path = os.path.join(data_path, file)
+    for file in os.listdir(DATA_FOLDER):
+        if file.endswith(".md") or file.endswith(".txt"):
+            file_path = os.path.join(DATA_FOLDER, file)
 
-        if file.endswith(".pdf"):
-            loader = PyPDFLoader(file_path)
-            documents.extend(loader.load())
-
-        elif file.endswith(".md") or file.endswith(".txt"):
             loader = TextLoader(file_path, encoding="utf-8")
-            documents.extend(loader.load())
+            docs = loader.load()
 
+            for doc in docs:
+                doc.metadata["source"] = file
+
+            documents.extend(docs)
+
+    if not documents:
+        raise ValueError("❌ No documents found in the data folder")
+
+    print(f"✅ Loaded {len(documents)} documents")
     return documents
 
 
-# -------------------------------
-# 3. Split Documents into Chunks
-# -------------------------------
+# -----------------------------------------
+# SPLIT DOCUMENTS INTO CHUNKS
+# -----------------------------------------
 def split_documents(documents):
+    print("✂️ Splitting documents...")
+
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
         chunk_overlap=150
     )
-    return text_splitter.split_documents(documents)
 
-
-# -------------------------------
-# 4. Create Embeddings + Vector DB
-# -------------------------------
-def create_vectorstore(chunks):
-    embeddings = OpenAIEmbeddings()
-
-    vectorstore = FAISS.from_documents(
-        documents=chunks,
-        embedding=embeddings
-    )
-
-    return vectorstore
-
-
-# -------------------------------
-# 5. Save Vector Store
-# -------------------------------
-def save_vectorstore(vectorstore, path="vectorstore"):
-    if not os.path.exists(path):
-        os.makedirs(path)
-
-    vectorstore.save_local(path)
-    print(f"✅ Vector store saved at: {path}")
-
-
-# -------------------------------
-# MAIN PIPELINE
-# -------------------------------
-def main():
-    print("📄 Loading documents...")
-    docs = load_documents()
-
-    print(f"✅ Loaded {len(docs)} documents")
-
-    print("✂️ Splitting documents...")
-    chunks = split_documents(docs)
+    chunks = text_splitter.split_documents(documents)
 
     print(f"✅ Created {len(chunks)} chunks")
+    return chunks
 
-    print("🔍 Creating embeddings and vector store...")
-    vectorstore = create_vectorstore(chunks)
 
-    print("💾 Saving vector store...")
-    save_vectorstore(vectorstore)
+# -----------------------------------------
+# CREATE EMBEDDINGS
+# -----------------------------------------
+def create_embeddings():
+    print("🔍 Creating embeddings...")
+    return OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        openai_api_key=OPENAI_API_KEY
+    )
 
-    print("🎉 Ingestion completed successfully!")
+
+# -----------------------------------------
+# STORE IN FAISS
+# -----------------------------------------
+def store_vector_db(chunks, embeddings):
+    print("📦 Building vector store...")
+
+    vectorstore = FAISS.from_documents(chunks, embeddings)
+
+    os.makedirs(os.path.dirname(VECTOR_DB_PATH), exist_ok=True)
+    vectorstore.save_local(VECTOR_DB_PATH)
+
+    print(f"💾 Vector store saved at: {VECTOR_DB_PATH}")
+
+
+# -----------------------------------------
+# MAIN PIPELINE
+# -----------------------------------------
+def main():
+    print("\n🚀 Starting ingestion pipeline...\n")
+
+    documents = load_documents()
+    chunks = split_documents(documents)
+    embeddings = create_embeddings()
+    store_vector_db(chunks, embeddings)
+
+    print("\n🎉 Ingestion completed successfully!\n")
 
 
 if __name__ == "__main__":
